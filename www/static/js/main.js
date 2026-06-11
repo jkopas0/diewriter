@@ -10,6 +10,7 @@ const loop = (canvas, ctx, postShader, tgt, input, prefabs, state, lastTime = 0)
 		}
 
 		document.getElementById("loading")?.remove();
+		GameObject.beginFrame();
 
 		ctx.bindFramebuffer(ctx.FRAMEBUFFER, tgt.framebuffer);
 		ctx.clearColor(0.1, 0.1, 0.1, 1);
@@ -60,8 +61,7 @@ const main = async () => {
 		return;
 	}
 
-	await yieldToMain();
-	const postShader = Shader.createPostShader(ctx);
+	const postShader = await Shader.createPostShader(ctx, yieldToMain);
 	await yieldToMain();
 	const tgt = Shader.createRenderTarget(ctx);
 	await yieldToMain();

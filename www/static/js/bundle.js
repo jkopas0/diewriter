@@ -47,29 +47,27 @@ void main() {
 		return shader;
 	};
 
-	const createProgram = (ctx, vertSrc, fragSrc) => {
-		const vert = compileShader(ctx, ctx.VERTEX_SHADER, vertSrc);
-		const frag = compileShader(ctx, ctx.FRAGMENT_SHADER, fragSrc);
-		if (!vert || !frag) return null;
+	// Yields between compile steps so each is its own task, keeping each under 50ms.
+	const createPostShader = async (ctx, yieldFn) => {
+		const vert = compileShader(ctx, ctx.VERTEX_SHADER, VERT);
+		await yieldFn();
+		const frag = compileShader(ctx, ctx.FRAGMENT_SHADER, POST_FRAG);
+		await yieldFn();
 
+		if (!vert || !frag) return null;
 		const program = ctx.createProgram();
 		ctx.attachShader(program, vert);
 		ctx.attachShader(program, frag);
 		ctx.linkProgram(program);
 		ctx.deleteShader(vert);
 		ctx.deleteShader(frag);
+		await yieldFn();
 
 		if (!ctx.getProgramParameter(program, ctx.LINK_STATUS)) {
 			console.error("Program link error:", ctx.getProgramInfoLog(program));
 			ctx.deleteProgram(program);
 			return null;
 		}
-		return program;
-	};
-
-	const createPostShader = (ctx) => {
-		const program = createProgram(ctx, VERT, POST_FRAG);
-		if (!program) return null;
 
 		const quadBuffer = ctx.createBuffer();
 		ctx.bindBuffer(ctx.ARRAY_BUFFER, quadBuffer);
@@ -289,6 +287,11 @@ void main() {
 	const posBufferCache = new Map();
 	let sharedUvBuffer = null;
 
+	// Sticky WebGL state — skip calls that haven't changed since the last draw.
+	let _program = null;
+	let _blendReady = false;
+	const _enabledAttribs = new Set();
+
 	const getTextTexture = (ctx, text, fontSize, font) => {
 		const key = `${text}\x00${fontSize}\x00${font}`;
 		if (textureCache.has(key)) return textureCache.get(key);
@@ -369,12 +372,11 @@ void main() {
 			const prog = getProgram(ctx);
 			if (!prog) return;
 
-			ctx.useProgram(prog.program);
-			ctx.enable(ctx.BLEND);
-			ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA);
+			if (prog.program !== _program) { ctx.useProgram(prog.program); _program = prog.program; }
+			if (!_blendReady) { ctx.enable(ctx.BLEND); ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA); _blendReady = true; }
 
 			ctx.bindBuffer(ctx.ARRAY_BUFFER, this.buffer);
-			ctx.enableVertexAttribArray(prog.positionLoc);
+			if (!_enabledAttribs.has(prog.positionLoc)) { ctx.enableVertexAttribArray(prog.positionLoc); _enabledAttribs.add(prog.positionLoc); }
 			ctx.vertexAttribPointer(prog.positionLoc, 2, ctx.FLOAT, false, 0, 0);
 
 			ctx.uniform2f(prog.resolutionLoc, ctx.drawingBufferWidth, ctx.drawingBufferHeight);
@@ -410,17 +412,15 @@ void main() {
 			const prog = getTextProgram(ctx);
 			if (!prog) return;
 
-			ctx.useProgram(prog.program);
-
-			ctx.enable(ctx.BLEND);
-			ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA);
+			if (prog.program !== _program) { ctx.useProgram(prog.program); _program = prog.program; }
+			if (!_blendReady) { ctx.enable(ctx.BLEND); ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA); _blendReady = true; }
 
 			ctx.bindBuffer(ctx.ARRAY_BUFFER, this.posBuffer);
-			ctx.enableVertexAttribArray(prog.positionLoc);
+			if (!_enabledAttribs.has(prog.positionLoc)) { ctx.enableVertexAttribArray(prog.positionLoc); _enabledAttribs.add(prog.positionLoc); }
 			ctx.vertexAttribPointer(prog.positionLoc, 2, ctx.FLOAT, false, 0, 0);
 
 			ctx.bindBuffer(ctx.ARRAY_BUFFER, this.uvBuffer);
-			ctx.enableVertexAttribArray(prog.texCoordLoc);
+			if (!_enabledAttribs.has(prog.texCoordLoc)) { ctx.enableVertexAttribArray(prog.texCoordLoc); _enabledAttribs.add(prog.texCoordLoc); }
 			ctx.vertexAttribPointer(prog.texCoordLoc, 2, ctx.FLOAT, false, 0, 0);
 
 			ctx.uniform2f(prog.resolutionLoc, ctx.drawingBufferWidth, ctx.drawingBufferHeight);
@@ -435,7 +435,9 @@ void main() {
 		}
 	}
 
-	return { Triangle, Quad, Text };
+	const beginFrame = () => { _program = null; };
+
+	return { Triangle, Quad, Text, beginFrame };
 })();
 
 const Prefab = (() => {
@@ -1142,6 +1144,7 @@ const loop = (canvas, ctx, postShader, tgt, input, prefabs, state, lastTime = 0)
 		}
 
 		document.getElementById("loading")?.remove();
+		GameObject.beginFrame();
 
 		ctx.bindFramebuffer(ctx.FRAMEBUFFER, tgt.framebuffer);
 		ctx.clearColor(0.1, 0.1, 0.1, 1);
@@ -1192,8 +1195,7 @@ const main = async () => {
 		return;
 	}
 
-	await yieldToMain();
-	const postShader = Shader.createPostShader(ctx);
+	const postShader = await Shader.createPostShader(ctx, yieldToMain);
 	await yieldToMain();
 	const tgt = Shader.createRenderTarget(ctx);
 	await yieldToMain();

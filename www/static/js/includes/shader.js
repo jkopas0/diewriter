@@ -47,29 +47,27 @@ void main() {
 		return shader;
 	};
 
-	const createProgram = (ctx, vertSrc, fragSrc) => {
-		const vert = compileShader(ctx, ctx.VERTEX_SHADER, vertSrc);
-		const frag = compileShader(ctx, ctx.FRAGMENT_SHADER, fragSrc);
-		if (!vert || !frag) return null;
+	// Yields between compile steps so each is its own task, keeping each under 50ms.
+	const createPostShader = async (ctx, yieldFn) => {
+		const vert = compileShader(ctx, ctx.VERTEX_SHADER, VERT);
+		await yieldFn();
+		const frag = compileShader(ctx, ctx.FRAGMENT_SHADER, POST_FRAG);
+		await yieldFn();
 
+		if (!vert || !frag) return null;
 		const program = ctx.createProgram();
 		ctx.attachShader(program, vert);
 		ctx.attachShader(program, frag);
 		ctx.linkProgram(program);
 		ctx.deleteShader(vert);
 		ctx.deleteShader(frag);
+		await yieldFn();
 
 		if (!ctx.getProgramParameter(program, ctx.LINK_STATUS)) {
 			console.error("Program link error:", ctx.getProgramInfoLog(program));
 			ctx.deleteProgram(program);
 			return null;
 		}
-		return program;
-	};
-
-	const createPostShader = (ctx) => {
-		const program = createProgram(ctx, VERT, POST_FRAG);
-		if (!program) return null;
 
 		const quadBuffer = ctx.createBuffer();
 		ctx.bindBuffer(ctx.ARRAY_BUFFER, quadBuffer);

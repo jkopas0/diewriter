@@ -146,6 +146,11 @@ void main() {
 	const posBufferCache = new Map();
 	let sharedUvBuffer = null;
 
+	// Sticky WebGL state — skip calls that haven't changed since the last draw.
+	let _program = null;
+	let _blendReady = false;
+	const _enabledAttribs = new Set();
+
 	const getTextTexture = (ctx, text, fontSize, font) => {
 		const key = `${text}\x00${fontSize}\x00${font}`;
 		if (textureCache.has(key)) return textureCache.get(key);
@@ -226,12 +231,11 @@ void main() {
 			const prog = getProgram(ctx);
 			if (!prog) return;
 
-			ctx.useProgram(prog.program);
-			ctx.enable(ctx.BLEND);
-			ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA);
+			if (prog.program !== _program) { ctx.useProgram(prog.program); _program = prog.program; }
+			if (!_blendReady) { ctx.enable(ctx.BLEND); ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA); _blendReady = true; }
 
 			ctx.bindBuffer(ctx.ARRAY_BUFFER, this.buffer);
-			ctx.enableVertexAttribArray(prog.positionLoc);
+			if (!_enabledAttribs.has(prog.positionLoc)) { ctx.enableVertexAttribArray(prog.positionLoc); _enabledAttribs.add(prog.positionLoc); }
 			ctx.vertexAttribPointer(prog.positionLoc, 2, ctx.FLOAT, false, 0, 0);
 
 			ctx.uniform2f(prog.resolutionLoc, ctx.drawingBufferWidth, ctx.drawingBufferHeight);
@@ -267,17 +271,15 @@ void main() {
 			const prog = getTextProgram(ctx);
 			if (!prog) return;
 
-			ctx.useProgram(prog.program);
-
-			ctx.enable(ctx.BLEND);
-			ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA);
+			if (prog.program !== _program) { ctx.useProgram(prog.program); _program = prog.program; }
+			if (!_blendReady) { ctx.enable(ctx.BLEND); ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA); _blendReady = true; }
 
 			ctx.bindBuffer(ctx.ARRAY_BUFFER, this.posBuffer);
-			ctx.enableVertexAttribArray(prog.positionLoc);
+			if (!_enabledAttribs.has(prog.positionLoc)) { ctx.enableVertexAttribArray(prog.positionLoc); _enabledAttribs.add(prog.positionLoc); }
 			ctx.vertexAttribPointer(prog.positionLoc, 2, ctx.FLOAT, false, 0, 0);
 
 			ctx.bindBuffer(ctx.ARRAY_BUFFER, this.uvBuffer);
-			ctx.enableVertexAttribArray(prog.texCoordLoc);
+			if (!_enabledAttribs.has(prog.texCoordLoc)) { ctx.enableVertexAttribArray(prog.texCoordLoc); _enabledAttribs.add(prog.texCoordLoc); }
 			ctx.vertexAttribPointer(prog.texCoordLoc, 2, ctx.FLOAT, false, 0, 0);
 
 			ctx.uniform2f(prog.resolutionLoc, ctx.drawingBufferWidth, ctx.drawingBufferHeight);
@@ -292,5 +294,7 @@ void main() {
 		}
 	}
 
-	return { Triangle, Quad, Text };
+	const beginFrame = () => { _program = null; };
+
+	return { Triangle, Quad, Text, beginFrame };
 })();
