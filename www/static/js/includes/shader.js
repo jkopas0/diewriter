@@ -1,5 +1,5 @@
 const Shader = (() => {
-	const ABERRATION_VERT = `
+	const VERT = `
 attribute vec2 a_position;
 varying vec2 v_uv;
 void main() {
@@ -8,11 +8,14 @@ void main() {
 }
 `;
 
-	const GRAIN_FRAG = `
+	const POST_FRAG = `
 precision mediump float;
 uniform sampler2D u_texture;
-uniform float u_time;
-uniform float u_strength;
+uniform vec2 u_aberration;
+uniform float u_grain_time;
+uniform float u_grain_strength;
+uniform float u_scanline_count;
+uniform float u_scanline_strength;
 varying vec2 v_uv;
 
 float rand(vec2 co) {
@@ -20,37 +23,15 @@ float rand(vec2 co) {
 }
 
 void main() {
-  vec4 color = texture2D(u_texture, v_uv);
-  float grain = (rand(v_uv + u_time) - 0.5) * u_strength;
-  gl_FragColor = vec4(color.rgb + grain, color.a);
-}
-`;
-
-	const ABERRATION_FRAG = `
-precision mediump float;
-uniform sampler2D u_texture;
-uniform vec2 u_offset;
-varying vec2 v_uv;
-void main() {
-  float r = texture2D(u_texture, v_uv + u_offset).r;
+  float r = texture2D(u_texture, v_uv + u_aberration).r;
   float g = texture2D(u_texture, v_uv).g;
-  float b = texture2D(u_texture, v_uv - u_offset).b;
+  float b = texture2D(u_texture, v_uv - u_aberration).b;
   float a = texture2D(u_texture, v_uv).a;
-  gl_FragColor = vec4(r, g, b, a);
-}
-`;
-
-	const SCANLINE_FRAG = `
-precision mediump float;
-uniform sampler2D u_texture;
-uniform float u_count;
-uniform float u_strength;
-varying vec2 v_uv;
-void main() {
-  vec4 color = texture2D(u_texture, v_uv);
-  float band = sin(v_uv.y * u_count * 3.14159265) * 0.5 + 0.5;
-  float factor = 1.0 - u_strength * (1.0 - band);
-  gl_FragColor = vec4(color.rgb * factor, color.a);
+  vec3 color = vec3(r, g, b);
+  color += (rand(v_uv + u_grain_time) - 0.5) * u_grain_strength;
+  float band = sin(v_uv.y * u_scanline_count * 3.14159265) * 0.5 + 0.5;
+  color *= 1.0 - u_scanline_strength * (1.0 - band);
+  gl_FragColor = vec4(color, a);
 }
 `;
 
@@ -75,7 +56,6 @@ void main() {
 		ctx.attachShader(program, vert);
 		ctx.attachShader(program, frag);
 		ctx.linkProgram(program);
-
 		ctx.deleteShader(vert);
 		ctx.deleteShader(frag);
 
@@ -87,8 +67,8 @@ void main() {
 		return program;
 	};
 
-	const createGrainShader = (ctx) => {
-		const program = createProgram(ctx, ABERRATION_VERT, GRAIN_FRAG);
+	const createPostShader = (ctx) => {
+		const program = createProgram(ctx, VERT, POST_FRAG);
 		if (!program) return null;
 
 		const quadBuffer = ctx.createBuffer();
@@ -100,15 +80,18 @@ void main() {
 
 		return {
 			program,
-			positionLoc: ctx.getAttribLocation(program, "a_position"),
-			textureLoc:  ctx.getUniformLocation(program, "u_texture"),
-			timeLoc:     ctx.getUniformLocation(program, "u_time"),
-			strengthLoc: ctx.getUniformLocation(program, "u_strength"),
+			positionLoc:         ctx.getAttribLocation(program, "a_position"),
+			textureLoc:          ctx.getUniformLocation(program, "u_texture"),
+			aberrationLoc:       ctx.getUniformLocation(program, "u_aberration"),
+			grainTimeLoc:        ctx.getUniformLocation(program, "u_grain_time"),
+			grainStrengthLoc:    ctx.getUniformLocation(program, "u_grain_strength"),
+			scanlineCountLoc:    ctx.getUniformLocation(program, "u_scanline_count"),
+			scanlineStrengthLoc: ctx.getUniformLocation(program, "u_scanline_strength"),
 			quadBuffer,
 		};
 	};
 
-	const applyGrainShader = (ctx, shader, texture, time, strength) => {
+	const applyPostShader = (ctx, shader, texture, graphics, now, canvasHeight) => {
 		ctx.useProgram(shader.program);
 
 		ctx.bindBuffer(ctx.ARRAY_BUFFER, shader.quadBuffer);
@@ -118,80 +101,14 @@ void main() {
 		ctx.activeTexture(ctx.TEXTURE0);
 		ctx.bindTexture(ctx.TEXTURE_2D, texture);
 		ctx.uniform1i(shader.textureLoc, 0);
-		ctx.uniform1f(shader.timeLoc, time);
-		ctx.uniform1f(shader.strengthLoc, strength);
 
-		ctx.drawArrays(ctx.TRIANGLES, 0, 6);
-	};
-
-	const createAberrationShader = (ctx) => {
-		const program = createProgram(ctx, ABERRATION_VERT, ABERRATION_FRAG);
-		if (!program) return null;
-
-		const quadBuffer = ctx.createBuffer();
-		ctx.bindBuffer(ctx.ARRAY_BUFFER, quadBuffer);
-		ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
-			-1, -1,   1, -1,  -1,  1,
-			-1,  1,   1, -1,   1,  1,
-		]), ctx.STATIC_DRAW);
-
-		return {
-			program,
-			positionLoc: ctx.getAttribLocation(program, "a_position"),
-			textureLoc:  ctx.getUniformLocation(program, "u_texture"),
-			offsetLoc:   ctx.getUniformLocation(program, "u_offset"),
-			quadBuffer,
-		};
-	};
-
-	const applyAberrationShader = (ctx, shader, texture, offsetX, offsetY) => {
-		ctx.useProgram(shader.program);
-
-		ctx.bindBuffer(ctx.ARRAY_BUFFER, shader.quadBuffer);
-		ctx.enableVertexAttribArray(shader.positionLoc);
-		ctx.vertexAttribPointer(shader.positionLoc, 2, ctx.FLOAT, false, 0, 0);
-
-		ctx.activeTexture(ctx.TEXTURE0);
-		ctx.bindTexture(ctx.TEXTURE_2D, texture);
-		ctx.uniform1i(shader.textureLoc, 0);
-		ctx.uniform2f(shader.offsetLoc, offsetX, offsetY);
-
-		ctx.drawArrays(ctx.TRIANGLES, 0, 6);
-	};
-
-	const createScanlineShader = (ctx) => {
-		const program = createProgram(ctx, ABERRATION_VERT, SCANLINE_FRAG);
-		if (!program) return null;
-
-		const quadBuffer = ctx.createBuffer();
-		ctx.bindBuffer(ctx.ARRAY_BUFFER, quadBuffer);
-		ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
-			-1, -1,   1, -1,  -1,  1,
-			-1,  1,   1, -1,   1,  1,
-		]), ctx.STATIC_DRAW);
-
-		return {
-			program,
-			positionLoc: ctx.getAttribLocation(program, "a_position"),
-			textureLoc:  ctx.getUniformLocation(program, "u_texture"),
-			countLoc:    ctx.getUniformLocation(program, "u_count"),
-			strengthLoc: ctx.getUniformLocation(program, "u_strength"),
-			quadBuffer,
-		};
-	};
-
-	const applyScanlineShader = (ctx, shader, texture, count, strength) => {
-		ctx.useProgram(shader.program);
-
-		ctx.bindBuffer(ctx.ARRAY_BUFFER, shader.quadBuffer);
-		ctx.enableVertexAttribArray(shader.positionLoc);
-		ctx.vertexAttribPointer(shader.positionLoc, 2, ctx.FLOAT, false, 0, 0);
-
-		ctx.activeTexture(ctx.TEXTURE0);
-		ctx.bindTexture(ctx.TEXTURE_2D, texture);
-		ctx.uniform1i(shader.textureLoc, 0);
-		ctx.uniform1f(shader.countLoc, count);
-		ctx.uniform1f(shader.strengthLoc, strength);
+		ctx.uniform2f(shader.aberrationLoc,
+			graphics.aberration ? 0.001 : 0.0,
+			graphics.aberration ? 0.002 : 0.0);
+		ctx.uniform1f(shader.grainTimeLoc,        now / 1000);
+		ctx.uniform1f(shader.grainStrengthLoc,    graphics.grain      ? 0.08 : 0.0);
+		ctx.uniform1f(shader.scanlineCountLoc,    graphics.scanlines  ? canvasHeight / 2 : 0.0);
+		ctx.uniform1f(shader.scanlineStrengthLoc, graphics.scanlines  ? 0.75 : 0.0);
 
 		ctx.drawArrays(ctx.TRIANGLES, 0, 6);
 	};
@@ -221,20 +138,5 @@ void main() {
 		return { framebuffer, texture };
 	};
 
-	const createPipeline = (ctx) => ({
-		buffers: [createRenderTarget(ctx), createRenderTarget(ctx)],
-	});
-
-	const runPipeline = (ctx, pipeline, srcTexture, steps) => {
-		let readTex = srcTexture;
-		for (let i = 0; i < steps.length; i++) {
-			const isLast = i === steps.length - 1;
-			const writeTgt = pipeline.buffers[i % 2];
-			ctx.bindFramebuffer(ctx.FRAMEBUFFER, isLast ? null : writeTgt.framebuffer);
-			steps[i](ctx, readTex);
-			readTex = writeTgt.texture;
-		}
-	};
-
-	return { createAberrationShader, applyAberrationShader, createGrainShader, applyGrainShader, createScanlineShader, applyScanlineShader, createRenderTarget, createPipeline, runPipeline };
+	return { createPostShader, applyPostShader, createRenderTarget };
 })();

@@ -2,10 +2,10 @@ const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 0));
 
 const FRAME_MS = 1000 / 60;
 
-const loop = (canvas, ctx, shaders, tgt, pipeline, input, prefabs, state, lastTime = 0) => {
+const loop = (canvas, ctx, postShader, tgt, input, prefabs, state, lastTime = 0) => {
 	requestAnimationFrame((now) => {
 		if (now - lastTime < FRAME_MS) {
-			loop(canvas, ctx, shaders, tgt, pipeline, input, prefabs, state, lastTime);
+			loop(canvas, ctx, postShader, tgt, input, prefabs, state, lastTime);
 			return;
 		}
 
@@ -39,14 +39,10 @@ const loop = (canvas, ctx, shaders, tgt, pipeline, input, prefabs, state, lastTi
 
 		input.pressed.clear();
 
-		const steps = [];
-		if (state.graphics.aberration) steps.push((ctx, tex) => Shader.applyAberrationShader(ctx, shaders["aberration"], tex, 0.001, 0.002));
-		if (state.graphics.grain)      steps.push((ctx, tex) => Shader.applyGrainShader(ctx, shaders["grain"], tex, now / 1000, 0.08));
-		if (state.graphics.scanlines)  steps.push((ctx, tex) => Shader.applyScanlineShader(ctx, shaders["scanline"], tex, canvas.height / 2, 0.75));
-		if (steps.length === 0)        steps.push((ctx, tex) => Shader.applyGrainShader(ctx, shaders["grain"], tex, 0, 0));
-		Shader.runPipeline(ctx, pipeline, tgt.texture, steps);
+		ctx.bindFramebuffer(ctx.FRAMEBUFFER, null);
+		Shader.applyPostShader(ctx, postShader, tgt.texture, state.graphics, now, canvas.height);
 
-		loop(canvas, ctx, shaders, tgt, pipeline, input, prefabs, state, now);
+		loop(canvas, ctx, postShader, tgt, input, prefabs, state, now);
 	});
 }
 
@@ -65,17 +61,9 @@ const main = async () => {
 	}
 
 	await yieldToMain();
-	const aberrationShader = Shader.createAberrationShader(ctx);
-	await yieldToMain();
-	const grainShader = Shader.createGrainShader(ctx);
-	await yieldToMain();
-	const scanlineShader = Shader.createScanlineShader(ctx);
-	const shaders = { aberration: aberrationShader, grain: grainShader, scanline: scanlineShader };
-
+	const postShader = Shader.createPostShader(ctx);
 	await yieldToMain();
 	const tgt = Shader.createRenderTarget(ctx);
-	await yieldToMain();
-	const pipeline = Shader.createPipeline(ctx);
 	await yieldToMain();
 
 	let audioReady = false;
@@ -142,7 +130,7 @@ const main = async () => {
 		}
 	});
 	const state = { screen: "mainMenu", audio: { fx: 1.0, bg: 1.0 }, graphics: { grain: true, aberration: true, scanlines: true }, achievements, achievementPopup: null, noise: null, sfx: null };
-	loop(canvas, ctx, shaders, tgt, pipeline, input, prefabs, state);
+	loop(canvas, ctx, postShader, tgt, input, prefabs, state);
 }
 
 main();

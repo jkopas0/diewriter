@@ -26,8 +26,8 @@ const settingsMenu = (canvas, ctx, input, prefabs, state) => {
 					},
 				},
 				{
-					key: "Background noise",
-					label: `Background noise [${Math.round(state.audio.bg * 100)}%]`,
+					key: "Ambient noise",
+					label: `Ambient noise [${Math.round(state.audio.bg * 100)}%]`,
 					setValue: (v) => {
 						state.audio.bg = Math.max(0, Math.min(1, v));
 						if (state.noise) state.noise.volume = state.audio.bg * 0.002;

@@ -128,13 +128,83 @@ void main() {
 		return entry;
 	};
 
+	const colorCache = new Map();
 	const parseHexColor = (hex) => {
+		if (colorCache.has(hex)) return colorCache.get(hex);
 		const h = hex.replace("#", "");
 		const r = parseInt(h.slice(0, 2), 16) / 255;
 		const g = parseInt(h.slice(2, 4), 16) / 255;
 		const b = parseInt(h.slice(4, 6), 16) / 255;
 		const a = h.length >= 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1.0;
-		return [r, g, b, a];
+		const result = [r, g, b, a];
+		colorCache.set(hex, result);
+		return result;
+	};
+
+	// Textures are keyed by content only — color is a shader uniform, not baked in.
+	const textureCache = new Map();
+	const posBufferCache = new Map();
+	let sharedUvBuffer = null;
+
+	const getTextTexture = (ctx, text, fontSize, font) => {
+		const key = `${text}\x00${fontSize}\x00${font}`;
+		if (textureCache.has(key)) return textureCache.get(key);
+
+		const canvas2d = document.createElement('canvas');
+		const c2d = canvas2d.getContext('2d');
+		c2d.font = `${fontSize}px ${font}`;
+		const lines = text.split('\n');
+		const lineHeight = Math.ceil(fontSize * 1.5);
+		const w = Math.ceil(Math.max(...lines.map(l => c2d.measureText(l).width)));
+		const h = lineHeight * lines.length;
+		canvas2d.width = w;
+		canvas2d.height = h;
+		c2d.font = `${fontSize}px ${font}`;
+		c2d.fillStyle = '#ffffff';
+		c2d.textBaseline = 'top';
+		lines.forEach((line, i) => c2d.fillText(line, 0, i * lineHeight));
+
+		const texture = ctx.createTexture();
+		ctx.bindTexture(ctx.TEXTURE_2D, texture);
+		ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, ctx.RGBA, ctx.UNSIGNED_BYTE, canvas2d);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_S, ctx.CLAMP_TO_EDGE);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_T, ctx.CLAMP_TO_EDGE);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.LINEAR);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MAG_FILTER, ctx.LINEAR);
+
+		const entry = { texture, w, h };
+		textureCache.set(key, entry);
+		return entry;
+	};
+
+	const getPosBuffer = (ctx, text, fontSize, font, x, y, anchor, w, h) => {
+		const key = `${text}\x00${fontSize}\x00${font}\x00${x}\x00${y}\x00${anchor}`;
+		if (posBufferCache.has(key)) return posBufferCache.get(key);
+
+		const [h_part, v_part] = anchor.split('-');
+		const ox = h_part === 'right' ? w : h_part === 'middle' ? w / 2 : 0;
+		const oy = v_part === 'bottom' ? h : v_part === 'middle' ? h / 2 : 0;
+		const x1 = x - ox, y1 = y - oy, x2 = x1 + w, y2 = y1 + h;
+		const posBuffer = ctx.createBuffer();
+		ctx.bindBuffer(ctx.ARRAY_BUFFER, posBuffer);
+		ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
+			x1, y1,  x2, y1,  x1, y2,
+			x2, y1,  x2, y2,  x1, y2,
+		]), ctx.STATIC_DRAW);
+
+		posBufferCache.set(key, posBuffer);
+		return posBuffer;
+	};
+
+	const getUvBuffer = (ctx) => {
+		if (sharedUvBuffer) return sharedUvBuffer;
+		sharedUvBuffer = ctx.createBuffer();
+		ctx.bindBuffer(ctx.ARRAY_BUFFER, sharedUvBuffer);
+		ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
+			0, 0,  1, 0,  0, 1,
+			1, 0,  1, 1,  0, 1,
+		]), ctx.STATIC_DRAW);
+		return sharedUvBuffer;
 	};
 
 	class Triangle {
@@ -186,46 +256,10 @@ void main() {
 			this.ctx = ctx;
 			this.color = parseHexColor(color);
 
-			const canvas2d = document.createElement('canvas');
-			const c2d = canvas2d.getContext('2d');
-			c2d.font = `${fontSize}px ${font}`;
-			const lines = text.split('\n');
-			const lineHeight = Math.ceil(fontSize * 1.5);
-			const w = Math.ceil(Math.max(...lines.map(l => c2d.measureText(l).width)));
-			const h = lineHeight * lines.length;
-			canvas2d.width = w;
-			canvas2d.height = h;
-
-			c2d.font = `${fontSize}px ${font}`;
-			c2d.fillStyle = '#ffffff';
-			c2d.textBaseline = 'top';
-			lines.forEach((line, i) => c2d.fillText(line, 0, i * lineHeight));
-
-			this.texture = ctx.createTexture();
-			ctx.bindTexture(ctx.TEXTURE_2D, this.texture);
-			ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, ctx.RGBA, ctx.UNSIGNED_BYTE, canvas2d);
-			ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_S, ctx.CLAMP_TO_EDGE);
-			ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_T, ctx.CLAMP_TO_EDGE);
-			ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.LINEAR);
-			ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MAG_FILTER, ctx.LINEAR);
-
-			const [h_part, v_part] = anchor.split('-');
-			const ox = h_part === 'right' ? w : h_part === 'middle' ? w / 2 : 0;
-			const oy = v_part === 'bottom' ? h : v_part === 'middle' ? h / 2 : 0;
-			const x1 = x - ox, y1 = y - oy, x2 = x1 + w, y2 = y1 + h;
-			this.posBuffer = ctx.createBuffer();
-			ctx.bindBuffer(ctx.ARRAY_BUFFER, this.posBuffer);
-			ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
-				x1, y1,  x2, y1,  x1, y2,
-				x2, y1,  x2, y2,  x1, y2,
-			]), ctx.STATIC_DRAW);
-
-			this.uvBuffer = ctx.createBuffer();
-			ctx.bindBuffer(ctx.ARRAY_BUFFER, this.uvBuffer);
-			ctx.bufferData(ctx.ARRAY_BUFFER, new Float32Array([
-				0, 0,  1, 0,  0, 1,
-				1, 0,  1, 1,  0, 1,
-			]), ctx.STATIC_DRAW);
+			const { texture, w, h } = getTextTexture(ctx, text, fontSize, font);
+			this.texture = texture;
+			this.uvBuffer = getUvBuffer(ctx);
+			this.posBuffer = getPosBuffer(ctx, text, fontSize, font, x, y, anchor, w, h);
 		}
 
 		render(ox = 0, oy = 0) {
