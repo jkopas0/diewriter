@@ -23,7 +23,7 @@ const mainMenu = (canvas, ctx, input, prefabs, state) => {
 	prefabs.face.render(1.4 * canvas.width / 2, canvas.height / 2, eyes, mouth);
 
 	const menuItems = [
-		{ label: "Start game",   action: () => { state.screen = "gameScreen"; } },
+		{ label: "Start game",   action: () => { state.achievements.add("blind_trust"); state.screen = "gameScreen"; } },
 		{ label: "Achievements", action: () => { state.screen = "achievementMenu"; } },
 		{ label: "Settings",     action: () => { state.screen = "settingsMenu"; } },
 	];
@@ -47,10 +47,6 @@ const mainMenu = (canvas, ctx, input, prefabs, state) => {
 		console.log("\x48\x6F\x6D\x65\x3A\x20\x31\x32\x37\x2E\x30\x2E\x30\x2E\x31");
 		state.achievements.add("\x68\x6F\x6D\x65\x31");
 		input.typed = "";
-	} else if (typedLower === "\x63\x6F\x20\x74\x79\x20\x6F\x64\x6B\x75\x72\x77\x69\x61\x73\x7A") {
-		console.log("\x63\x68\x6C\x65\x62\x20\x7A\x20\x63\x65\x6D\x65\x6E\x74\x65\x6D");
-		state.achievements.add("\x63\x65\x6D\x65\x6E\x74");
-		input.typed = "";
 	}
 
 	// Find partial match for highlight
@@ -59,7 +55,7 @@ const mainMenu = (canvas, ctx, input, prefabs, state) => {
 		: null;
 	input.completion = matchedItem ? matchedItem.label : null;
 
-	new GameObject.Text(ctx, "#FFFFFFFF", "Fnuy xD", 100, 100, 64, 'sans-serif').render();
+	new GameObject.Text(ctx, "#FFFFFFFF", "Diewriter", 100, 100, 64, 'sans-serif').render();
 
 	const yStart = 220;
 	menuItems.forEach((item, i) => {

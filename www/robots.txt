@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://jkopas0.github.io/diewriter/sitemap.xml

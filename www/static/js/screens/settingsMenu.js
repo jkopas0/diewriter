@@ -5,21 +5,41 @@ const settingsMenu = (canvas, ctx, input, prefabs, state) => {
 		root: {
 			title: "Settings",
 			items: [
-				{ label: "Audio",   action: () => { settingsMenu.subScreen = "audio"; } },
+				{ label: "Audio",    action: () => { settingsMenu.subScreen = "audio"; } },
 				{ label: "Graphics", action: () => { settingsMenu.subScreen = "graphics"; } },
-				{ label: "Back",    action: () => { settingsMenu.subScreen = "root"; state.screen = "mainMenu"; } },
+				{ label: "Back",     action: () => { settingsMenu.subScreen = "root"; state.screen = "mainMenu"; } },
 			],
 		},
 		audio: {
 			title: "Audio",
 			items: [
+				{
+					key: "Sound effects",
+					label: `Sound effects [${Math.round(state.audio.fx * 100)}%]`,
+					setValue: (v) => {
+						state.audio.fx = Math.max(0, Math.min(1, v));
+						if (state.sfx) {
+							state.sfx.keypress.volume    = state.audio.fx * 0.15;
+							state.sfx.achievement.volume = state.audio.fx * 0.25;
+							state.sfx.text.volume        = state.audio.fx * 0.40;
+						}
+					},
+				},
+				{
+					key: "Background noise",
+					label: `Background noise [${Math.round(state.audio.bg * 100)}%]`,
+					setValue: (v) => {
+						state.audio.bg = Math.max(0, Math.min(1, v));
+						if (state.noise) state.noise.volume = state.audio.bg * 0.002;
+					},
+				},
 				{ label: "Back", action: () => { settingsMenu.subScreen = "root"; } },
 			],
 		},
 		graphics: {
 			title: "Graphics",
 			items: [
-				{ key: "Film grain",          label: `Film grain [${state.graphics.grain ? "ON" : "OFF"}]`,               action: () => { state.graphics.grain = !state.graphics.grain; } },
+				{ key: "Film grain",           label: `Film grain [${state.graphics.grain ? "ON" : "OFF"}]`,               action: () => { state.graphics.grain = !state.graphics.grain; } },
 				{ key: "Chromatic aberration", label: `Chromatic aberration [${state.graphics.aberration ? "ON" : "OFF"}]`, action: () => { state.graphics.aberration = !state.graphics.aberration; } },
 				{ key: "Scanlines",            label: `Scanlines [${state.graphics.scanlines ? "ON" : "OFF"}]`,             action: () => { state.graphics.scanlines = !state.graphics.scanlines; } },
 				{ label: "Back", action: () => { settingsMenu.subScreen = "root"; } },
@@ -41,12 +61,24 @@ const settingsMenu = (canvas, ctx, input, prefabs, state) => {
 
 	const current = subScreens[settingsMenu.subScreen];
 	const typedLower = input.typed.toLowerCase();
-
 	const matchKey = item => (item.key ?? item.label).toLowerCase();
 
 	for (const item of current.items) {
-		if (typedLower === matchKey(item)) {
-			item.action();
+		if (item.setValue) {
+			// Accept "<key> <0-100>%" — the % is the explicit terminator so
+			// partial numbers don't auto-submit before the player finishes typing.
+			const prefix = matchKey(item) + " ";
+			if (typedLower.startsWith(prefix) && typedLower.endsWith("%")) {
+				const raw = typedLower.slice(prefix.length, -1);
+				const num = Number(raw);
+				if (raw !== "" && !isNaN(num) && num >= 0 && num <= 100) {
+					item.setValue(num / 100);
+					input.typed = "";
+					break;
+				}
+			}
+		} else if (typedLower === matchKey(item)) {
+			item.action?.();
 			input.typed = "";
 			break;
 		}
@@ -63,9 +95,22 @@ const settingsMenu = (canvas, ctx, input, prefabs, state) => {
 	}
 
 	const matchedItem = typedLower.length > 0
-		? current.items.find(item => matchKey(item).startsWith(typedLower))
+		? current.items.find(item => {
+			if (item.setValue) {
+				return matchKey(item).startsWith(typedLower) ||
+				       typedLower.startsWith(matchKey(item) + " ");
+			}
+			return matchKey(item).startsWith(typedLower);
+		})
 		: null;
-	input.completion = matchedItem ? matchKey(matchedItem) : null;
+
+	// For setValue items, hint Tab→complete with a trailing space so the player
+	// knows to type a number next.
+	if (matchedItem?.setValue && typedLower === matchKey(matchedItem)) {
+		input.completion = matchKey(matchedItem) + " ";
+	} else {
+		input.completion = matchedItem ? matchKey(matchedItem) : null;
+	}
 
 	const titleFontSize = 64;
 	const titleLineHeight = Math.ceil(titleFontSize * 1.5);

@@ -3,18 +3,49 @@
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="stylesheet" href="/static/css/style.css">
-	<title>Fnuy xD</title>
+
+	<title>Diewriter</title>
+	<meta name="description" content="A keyboard-driven interactive horror fiction game. Type to navigate. Something is already reading.">
+	<meta name="keywords" content="interactive fiction, horror game, text adventure, browser game, keyboard game">
+	<meta name="author" content="jkopas0">
+	<link rel="canonical" href="https://jkopas0.github.io/diewriter/">
+
+	<meta property="og:type" content="website">
+	<meta property="og:url" content="https://jkopas0.github.io/diewriter/">
+	<meta property="og:title" content="Diewriter">
+	<meta property="og:description" content="A keyboard-driven interactive horror fiction game. Type to navigate. Something is already reading.">
+
+	<meta name="twitter:card" content="summary">
+	<meta name="twitter:url" content="https://jkopas0.github.io/diewriter/">
+	<meta name="twitter:title" content="Diewriter">
+	<meta name="twitter:description" content="A keyboard-driven interactive horror fiction game. Type to navigate. Something is already reading.">
+
+	<style>
+		body {
+			width: 100vw;
+			height: 100vh;
+			background-color: #1F1F1F;
+			box-sizing: border-box;
+			margin: 0;
+			padding: 0;
+			overflow: hidden;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		canvas#main {
+			width: min(100vw - 20px, (100vh - 20px) * 16 / 8.08);
+			aspect-ratio: 16 / 8.08;
+			display: block;
+			border: 2px solid #5F0A5F;
+			border-radius: 5px;
+			margin: 10px;
+		}
+	</style>
 </head>
 <body>
 	<canvas id="main"></canvas>
-	<script src="/static/js/includes/shader.js"></script>
-	<script src="/static/js/includes/gameObject.js"></script>
-	<script src="/static/js/prefab.js"></script>
-	<script src="/static/js/screens/achievementMenu.js"></script>
-	<script src="/static/js/screens/mainMenu.js"></script>
-	<script src="/static/js/screens/settingsMenu.js"></script>
-	<script src="/static/js/screens/gameScreen.js"></script>
-	<script src="/static/js/main.js"></script>
+	<script src="/static/js/bundle.js"></script>
 </body>
 </html>

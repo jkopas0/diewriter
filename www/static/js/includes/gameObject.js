@@ -157,6 +157,8 @@ void main() {
 			if (!prog) return;
 
 			ctx.useProgram(prog.program);
+			ctx.enable(ctx.BLEND);
+			ctx.blendFunc(ctx.SRC_ALPHA, ctx.ONE_MINUS_SRC_ALPHA);
 
 			ctx.bindBuffer(ctx.ARRAY_BUFFER, this.buffer);
 			ctx.enableVertexAttribArray(prog.positionLoc);

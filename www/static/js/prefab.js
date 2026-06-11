@@ -1,19 +1,23 @@
 const Prefab = (() => {
 	class Face {
 		constructor(ctx) {
+			this._ctx = ctx;
 			this._exprs = {};
-			for (const eyes of Object.keys(Face.eyes)) {
-				for (const mouth of Object.keys(Face.mouth)) {
-					this._exprs[`${eyes}:${mouth}`] = [
-						...Face.eyes[eyes](ctx),
-						...Face.mouth[mouth](ctx),
-					];
-				}
+		}
+
+		_build(eyes, mouth) {
+			const key = `${eyes}:${mouth}`;
+			if (!this._exprs[key]) {
+				this._exprs[key] = [
+					...Face.eyes[eyes](this._ctx),
+					...Face.mouth[mouth](this._ctx),
+				];
 			}
+			return this._exprs[key];
 		}
 
 		render(x, y, eyes = 'open', mouth = 'smile') {
-			const parts = this._exprs[`${eyes}:${mouth}`];
+			const parts = this._build(eyes, mouth);
 			if (!parts) return;
 			for (const part of parts) {
 				if (part) part.render(x, y);
