@@ -756,7 +756,6 @@ const mainMenu = (canvas, ctx, input, prefabs, state) => {
 
 	new GameObject.Text(ctx, "#FFFFFF5F", "Tip: Use your keyboard.", 100, 550, 24, 'sans-serif').render();
 }
-
 const settingsMenu = (canvas, ctx, input, prefabs, state) => {
 	settingsMenu.subScreen = settingsMenu.subScreen ?? "root";
 
@@ -824,6 +823,8 @@ const settingsMenu = (canvas, ctx, input, prefabs, state) => {
 
 	for (const item of current.items) {
 		if (item.setValue) {
+			// Accept "<key> <0-100>%" — the % is the explicit terminator so
+			// partial numbers don't auto-submit before the player finishes typing.
 			const prefix = matchKey(item) + " ";
 			if (typedLower.startsWith(prefix) && typedLower.endsWith("%")) {
 				const raw = typedLower.slice(prefix.length, -1);
@@ -861,6 +862,8 @@ const settingsMenu = (canvas, ctx, input, prefabs, state) => {
 		})
 		: null;
 
+	// For setValue items, hint Tab→complete with a trailing space so the player
+	// knows to type a number next.
 	if (matchedItem?.setValue && typedLower === matchKey(matchedItem)) {
 		input.completion = matchKey(matchedItem) + " ";
 	} else {
@@ -1018,7 +1021,7 @@ const GAME_TEXTS = [
 	"...",																// 69 — "Yes" path
 	"...",																// 70 — CONVERGENCE
 	{																	// 71
-		text: "S̷̨ę̷ę̷?",
+		text: "S̷̨ę̷ę̷?",
 		replies: [ { label: "", hidden: true } ],
 		color: "#ECACACFF",
 	},
@@ -1202,6 +1205,8 @@ const loop = (canvas, ctx, shaders, tgt, pipeline, input, prefabs, state, lastTi
 			return;
 		}
 
+		document.getElementById("loading")?.remove();
+
 		ctx.bindFramebuffer(ctx.FRAMEBUFFER, tgt.framebuffer);
 		ctx.clearColor(0.1, 0.1, 0.1, 1);
 		ctx.clear(ctx.COLOR_BUFFER_BIT);
@@ -1244,26 +1249,14 @@ const loop = (canvas, ctx, shaders, tgt, pipeline, input, prefabs, state, lastTi
 const main = async () => {
 	const canvas = document.getElementById("main");
 
-	const noise = new Audio("/static/assets/sfx/White Noise.ogg");
-	noise.loop = true;
-	noise.volume = 0.002;
-	noise.play().catch(() => {
-		const resume = () => {
-			noise.play();
-			canvas.removeEventListener("click", resume);
-			window.removeEventListener("keydown", resume);
-		};
-		canvas.addEventListener("click", resume);
-		window.addEventListener("keydown", resume);
-	});
-
 	canvas.width = 1280;
 	canvas.height = 640;
 
 	const ctx = canvas.getContext("webgl");
 
 	if (ctx == null) {
-		alert("Failed to initialize WebGL.");
+		const loading = document.getElementById("loading");
+		if (loading) loading.textContent = "WebGL is not supported by your browser.";
 		return;
 	}
 
@@ -1279,22 +1272,36 @@ const main = async () => {
 	const tgt = Shader.createRenderTarget(ctx);
 	await yieldToMain();
 	const pipeline = Shader.createPipeline(ctx);
-
 	await yieldToMain();
 
-	const sfx = {
-		keypress:    new Audio("/static/assets/sfx/keypress.ogg"),
-		achievement: new Audio("/static/assets/sfx/achievement.ogg"),
-		text:        new Audio("/static/assets/sfx/text.ogg"),
+	let audioReady = false;
+	const initAudio = () => {
+		if (audioReady) return;
+		audioReady = true;
+
+		const noise = new Audio("/static/assets/sfx/White Noise.ogg");
+		noise.loop = true;
+		noise.volume = state.audio.bg * 0.002;
+		noise.play().catch(() => {});
+		state.noise = noise;
+
+		state.sfx = {
+			keypress:    new Audio("/static/assets/sfx/keypress.ogg"),
+			achievement: new Audio("/static/assets/sfx/achievement.ogg"),
+			text:        new Audio("/static/assets/sfx/text.ogg"),
+		};
+		state.sfx.keypress.volume    = state.audio.fx * 0.15;
+		state.sfx.achievement.volume = state.audio.fx * 0.25;
+		state.sfx.text.volume        = state.audio.fx * 0.40;
 	};
-	sfx.keypress.volume    = 0.15;
-	sfx.achievement.volume = 0.25;
-	sfx.text.volume        = 0.40;
 
 	const input = { keys: new Set(), pressed: new Set(), typed: "" };
 	window.addEventListener("keydown", e => {
-		sfx.keypress.currentTime = 0;
-		sfx.keypress.play().catch(() => {});
+		initAudio();
+		if (state.sfx) {
+			state.sfx.keypress.currentTime = 0;
+			state.sfx.keypress.play().catch(() => {});
+		}
 		input.keys.add(e.code);
 		input.pressed.add(e.code);
 		if (e.code === "Escape") {
@@ -1308,7 +1315,7 @@ const main = async () => {
 			input.typed += e.key;
 		}
 	});
-	window.addEventListener("keyup",   e => input.keys.delete(e.code));
+	window.addEventListener("keyup", e => input.keys.delete(e.code));
 
 	const prefabs = { face: new Prefab.Face(ctx) };
 	const achievementsSet = new Set();
@@ -1317,8 +1324,10 @@ const main = async () => {
 			if (prop === "add") {
 				return (id) => {
 					if (!target.has(id)) {
-						sfx.achievement.currentTime = 0;
-						sfx.achievement.play().catch(() => {});
+						if (state.sfx) {
+							state.sfx.achievement.currentTime = 0;
+							state.sfx.achievement.play().catch(() => {});
+						}
 						state.achievementPopup = { id, frames: 300 };
 					}
 					return target.add(id);
@@ -1328,8 +1337,9 @@ const main = async () => {
 			return typeof val === "function" ? val.bind(target) : val;
 		}
 	});
-	const state = { screen: "mainMenu", audio: { fx: 1.0, bg: 1.0 }, graphics: { grain: true, aberration: true, scanlines: true }, achievements, achievementPopup: null, noise, sfx };
+	const state = { screen: "mainMenu", audio: { fx: 1.0, bg: 1.0 }, graphics: { grain: true, aberration: true, scanlines: true }, achievements, achievementPopup: null, noise: null, sfx: null };
 	loop(canvas, ctx, shaders, tgt, pipeline, input, prefabs, state);
 }
 
 main();
+

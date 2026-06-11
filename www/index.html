@@ -42,10 +42,22 @@
 			border-radius: 5px;
 			margin: 10px;
 		}
+
+		#loading {
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			color: #AAAAAA;
+			font-family: monospace;
+			font-size: 18px;
+			pointer-events: none;
+		}
 	</style>
 </head>
 <body>
+	<p id="loading">Loading...</p>
 	<canvas id="main"></canvas>
-	<script src="/static/js/bundle.js"></script>
+	<script src="/static/js/bundle.js" defer></script>
 </body>
 </html>
