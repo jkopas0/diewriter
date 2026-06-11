@@ -71,7 +71,7 @@ const main = async () => {
 		if (audioReady) return;
 		audioReady = true;
 
-		const noise = new Audio("static/assets/sfx/White Noise.ogg");
+		const noise = new Audio("static/assets/sfx/white_noise.ogg");
 		noise.loop = true;
 		noise.volume = state.audio.bg * 0.002;
 		noise.play().catch(() => {});
