@@ -71,16 +71,16 @@ const main = async () => {
 		if (audioReady) return;
 		audioReady = true;
 
-		const noise = new Audio("/static/assets/sfx/White Noise.ogg");
+		const noise = new Audio("static/assets/sfx/White Noise.ogg");
 		noise.loop = true;
 		noise.volume = state.audio.bg * 0.002;
 		noise.play().catch(() => {});
 		state.noise = noise;
 
 		state.sfx = {
-			keypress:    new Audio("/static/assets/sfx/keypress.ogg"),
-			achievement: new Audio("/static/assets/sfx/achievement.ogg"),
-			text:        new Audio("/static/assets/sfx/text.ogg"),
+			keypress:    new Audio("static/assets/sfx/keypress.ogg"),
+			achievement: new Audio("static/assets/sfx/achievement.ogg"),
+			text:        new Audio("static/assets/sfx/text.ogg"),
 		};
 		state.sfx.keypress.volume    = state.audio.fx * 0.15;
 		state.sfx.achievement.volume = state.audio.fx * 0.25;
