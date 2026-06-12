@@ -28,6 +28,97 @@
 		<p id="loading">Loading...</p>
 		<canvas id="main"></canvas>
 	</main>
+	<div id="onscreen-keyboard" aria-label="On-screen keyboard">
+		<div class="kb-row" id="kb-row-0">
+			<button class="kb-key kb-tab" data-code="Escape" data-key="Escape">esc</button>
+			<button class="kb-key" data-code="Digit1" data-key="1">1</button>
+			<button class="kb-key" data-code="Digit2" data-key="2">2</button>
+			<button class="kb-key" data-code="Digit3" data-key="3">3</button>
+			<button class="kb-key" data-code="Digit4" data-key="4">4</button>
+			<button class="kb-key" data-code="Digit5" data-key="5">5</button>
+			<button class="kb-key" data-code="Digit6" data-key="6">6</button>
+			<button class="kb-key" data-code="Digit7" data-key="7">7</button>
+			<button class="kb-key" data-code="Digit8" data-key="8">8</button>
+			<button class="kb-key" data-code="Digit9" data-key="9">9</button>
+			<button class="kb-key" data-code="Digit0" data-key="0">0</button>
+		</div>
+		<div class="kb-row" id="kb-row-1">
+			<button class="kb-key kb-tab" data-code="Tab" data-key="Tab">tab</button>
+			<button class="kb-key" data-code="KeyQ" data-key="q">q</button>
+			<button class="kb-key" data-code="KeyW" data-key="w">w</button>
+			<button class="kb-key" data-code="KeyE" data-key="e">e</button>
+			<button class="kb-key" data-code="KeyR" data-key="r">r</button>
+			<button class="kb-key" data-code="KeyT" data-key="t">t</button>
+			<button class="kb-key" data-code="KeyY" data-key="y">y</button>
+			<button class="kb-key" data-code="KeyU" data-key="u">u</button>
+			<button class="kb-key" data-code="KeyI" data-key="i">i</button>
+			<button class="kb-key" data-code="KeyO" data-key="o">o</button>
+			<button class="kb-key" data-code="KeyP" data-key="p">p</button>
+		</div>
+		<div class="kb-row" id="kb-row-2">
+			<div class="kb-spacer"></div>
+			<button class="kb-key" data-code="KeyA" data-key="a">a</button>
+			<button class="kb-key" data-code="KeyS" data-key="s">s</button>
+			<button class="kb-key" data-code="KeyD" data-key="d">d</button>
+			<button class="kb-key" data-code="KeyF" data-key="f">f</button>
+			<button class="kb-key" data-code="KeyG" data-key="g">g</button>
+			<button class="kb-key" data-code="KeyH" data-key="h">h</button>
+			<button class="kb-key" data-code="KeyJ" data-key="j">j</button>
+			<button class="kb-key" data-code="KeyK" data-key="k">k</button>
+			<button class="kb-key" data-code="KeyL" data-key="l">l</button>
+			<button class="kb-key kb-bksp" data-code="Backspace" data-key="Backspace">⌫</button>
+		</div>
+		<div class="kb-row" id="kb-row-3">
+			<div class="kb-spacer"></div>
+			<button class="kb-key" data-code="Digit5" data-key="%">%</button>
+			<button class="kb-key" data-code="KeyZ" data-key="z">z</button>
+			<button class="kb-key" data-code="KeyX" data-key="x">x</button>
+			<button class="kb-key" data-code="KeyC" data-key="c">c</button>
+			<button class="kb-key" data-code="KeyV" data-key="v">v</button>
+			<button class="kb-key" data-code="KeyB" data-key="b">b</button>
+			<button class="kb-key" data-code="KeyN" data-key="n">n</button>
+			<button class="kb-key" data-code="KeyM" data-key="m">m</button>
+			<button class="kb-key kb-arrow" data-code="ArrowUp" data-key="ArrowUp">↑</button>
+		</div>
+		<div class="kb-row" id="kb-row-4">
+			<button class="kb-key" data-code="Comma" data-key=",">,</button>
+			<button class="kb-key" data-code="Period" data-key=".">.</button>
+			<button class="kb-key" data-code="Quote" data-key="'">'</button>
+			<div class="kb-spacer"></div>
+			<button class="kb-key kb-space" data-code="Space" data-key=" ">space</button>
+			<div class="kb-spacer"></div>
+			<button class="kb-key kb-arrow" data-code="ArrowLeft" data-key="ArrowLeft">←</button>
+			<button class="kb-key kb-arrow" data-code="ArrowDown" data-key="ArrowDown">↓</button>
+			<button class="kb-key kb-arrow" data-code="ArrowRight" data-key="ArrowRight">→</button>
+		</div>
+	</div>
 	<script src="static/js/bundle.js" defer></script>
+	<script>
+		(function () {
+			var kb = document.getElementById('onscreen-keyboard');
+			if (!kb) return;
+
+			function fireKey(code, key) {
+				window.dispatchEvent(new KeyboardEvent('keydown', { code: code, key: key, bubbles: true, cancelable: true }));
+				setTimeout(function () {
+					window.dispatchEvent(new KeyboardEvent('keyup', { code: code, key: key, bubbles: true }));
+				}, 80);
+			}
+
+			kb.querySelectorAll('.kb-key').forEach(function (btn) {
+				btn.addEventListener('pointerdown', function (e) {
+					e.preventDefault();
+					btn.classList.add('kb-active');
+					fireKey(btn.dataset.code, btn.dataset.key);
+				});
+				btn.addEventListener('pointerup', function () {
+					btn.classList.remove('kb-active');
+				});
+				btn.addEventListener('pointercancel', function () {
+					btn.classList.remove('kb-active');
+				});
+			});
+		})();
+	</script>
 </body>
 </html>
